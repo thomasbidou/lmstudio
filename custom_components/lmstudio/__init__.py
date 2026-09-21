@@ -74,7 +74,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_setup()
 
     # Ship the Lovelace card bundled with the integration (idempotent).
-    await _async_sync_card(hass)
+    await async_ship_card(hass)
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
