@@ -329,3 +329,36 @@ def test_compute_model_sync_all_added():
     added, removed = compute_model_sync(set(), {"qwen/qwen3-8b"})
     assert added == {"qwen/qwen3-8b"}
     assert removed == set()
+
+
+def test_no_await_on_sync_ha_methods():
+    """Regression: HA's `async_set_updated_data` is a SYNC method (returns None).
+
+    `await`-ing it raises `TypeError: object NoneType can't be awaited` at
+    runtime (the model still loads/unloads on the server, then the confirm
+    step blows up). This AST scan fails the test if any module awaits a
+    known-sync HA helper, catching the bug at import/test time.
+    """
+    import ast
+    import pathlib
+
+    pkg = pathlib.Path(__file__).parent.parent / "custom_components" / "lmstudio"
+    # HA helpers that look async by name but are actually plain `def`
+    sync_methods = {
+        "async_set_updated_data",
+        "async_add_listener",
+        "async_write_ha_state",
+        "async_schedule_ha_state",
+    }
+    offenders: list[str] = []
+    for py in sorted(pkg.glob("*.py")):
+        tree = ast.parse(py.read_text(), filename=str(py))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Await)
+                and isinstance(node.value, ast.Call)
+                and isinstance(node.value.func, ast.Attribute)
+                and node.value.func.attr in sync_methods
+            ):
+                offenders.append(f"{py.name}:{node.lineno} await {node.value.func.attr}()")
+    assert not offenders, "awaited a sync HA helper: " + ", ".join(offenders)

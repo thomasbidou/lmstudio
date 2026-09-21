@@ -199,7 +199,7 @@ class LMStudioCoordinator(DataUpdateCoordinator[dict[str, ModelInfo]]):
             else:
                 model = fresh.get(model_id)
                 if model is not None and model.is_loaded is want_loaded:
-                    await self.async_set_updated_data(
+                    self.async_set_updated_data(
                         self._apply_allowlist(fresh)
                     )
                     return
