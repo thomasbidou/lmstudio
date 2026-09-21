@@ -42,9 +42,11 @@ own defaults, exactly like the simple card):
 
 ## Lovelace cards
 
-The integration ships **two** Lovelace cards **with the package**, copied into
-`/homeassistant/www/` automatically at setup (no manual resource needed; they
-update/roll back with the integration):
+Both cards ship in a **single JavaScript bundle** at the one resource path
+(`custom_components/lmstudio/www/lmstudio-model-card/card.js`), which the
+integration copies to `/homeassistant/www/lmstudio-model-card/card.js` at setup.
+Because both custom-element definitions live in that one file — and that file is
+registered as a Lovelace resource — **both cards appear in the card picker**:
 
 - **`custom: lmstudio-model-card`** — the simple one. Model menu + **Load /
   Unload** + **Chargé / Déchargé** badge + **Refresh**. Loads with the server's
@@ -58,7 +60,9 @@ update/roll back with the integration):
   `lmstudio.load_model` (if the model is already loaded it unloads then
   re-loads with the new parameters).
 
-Add either as a card on a dashboard and it works out of the box.
+> If you upgrade from a version where only the simple card was present, **hard
+> refresh** the browser (Ctrl/Cmd+Shift+R) so the updated bundle is loaded and
+> the advanced card shows up in the picker.
 
 ## How it talks to LM Studio
 
