@@ -188,15 +188,40 @@ class LMStudioClient:
             out.setdefault(key, entry)
         return out
 
-    async def load_model(self, model_id: str, context_length: int | None = None) -> None:
+    async def load_model(
+        self,
+        model_id: str,
+        context_length: int | None = None,
+        *,
+        flash_attention: bool | None = None,
+        eval_batch_size: int | None = None,
+        num_experts: int | None = None,
+        offload_kv_cache_to_gpu: bool | None = None,
+    ) -> None:
         """POST /api/v1/models/load with the id in the JSON body.
 
         NOTE: load is NOT idempotent — the caller must only invoke this for a
         model whose state is "not-loaded" (see coordinator guard).
+
+        Parameters (all optional; omitted fields are NOT sent, so the server
+        applies its own defaults):
+          * context_length        — int, max tokens considered by the model
+          * flash_attention       — bool, llama.cpp engine only
+          * eval_batch_size       — int,  llama.cpp engine only
+          * num_experts           — int,  MoE models + llama.cpp only
+          * offload_kv_cache_to_gpu — bool, llama.cpp engine only
         """
         payload: dict[str, Any] = {"model": model_id}
-        if context_length:
+        if context_length is not None:
             payload["context_length"] = int(context_length)
+        if flash_attention is not None:
+            payload["flash_attention"] = bool(flash_attention)
+        if eval_batch_size is not None:
+            payload["eval_batch_size"] = int(eval_batch_size)
+        if num_experts is not None:
+            payload["num_experts"] = int(num_experts)
+        if offload_kv_cache_to_gpu is not None:
+            payload["offload_kv_cache_to_gpu"] = bool(offload_kv_cache_to_gpu)
         _LOGGER.debug("Loading model %s (payload=%s)", model_id, payload)
         await self._post("/api/v1/models/load", payload)
 

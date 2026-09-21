@@ -16,18 +16,49 @@ Services (usable in automations):
 
 | Service | Argument | Effect |
 |---------|----------|--------|
-| `lmstudio.load_model` | `model: "qwen/qwen3-8b"` | Load (only if currently not loaded) |
+| `lmstudio.load_model` | `model: "qwen/qwen3-8b"` + optional params (see below) | Load (only if currently not loaded) |
 | `lmstudio.unload_model` | `model: "qwen/qwen3-8b"` | Unload (only if currently loaded) |
 | `lmstudio.refresh` | — | Force a state refresh |
 
-## Lovelace card
+**Optional load parameters** (all optional — omit to let the server apply its
+own defaults, exactly like the simple card):
 
-The integration ships its own Lovelace card **with the package**
-(`lmstudio-model-card`): a scrollable model menu + a single **Load / Unload**
-button + a **Chargé / Déchargé** badge + a **Refresh** button. It is copied
-into `/homeassistant/www/` automatically at setup — so you never add the
-resource manually, and it updates/rolls back with the integration. Add a
-`custom: lmstudio-model-card` card to a dashboard and it works out of the box.
+| Param | Type | Meaning | Applies to |
+|-------|------|---------|------------|
+| `context_length` | int | Max context size (tokens) | all engines |
+| `flash_attention` | bool | Flash attention (less VRAM, faster) | llama.cpp |
+| `eval_batch_size` | int | Eval batch size | llama.cpp |
+| `num_experts` | int | Active experts (MoE routing) | MoE models |
+| `offload_kv_cache_to_gpu` | bool | KV cache in VRAM (false = RAM) | llama.cpp |
+
+```yaml
+- service: lmstudio.load_model
+  data:
+    model: qwen/qwen3.6-35b-a3b
+    context_length: 16384
+    flash_attention: true
+    num_experts: 8
+```
+
+## Lovelace cards
+
+The integration ships **two** Lovelace cards **with the package**, copied into
+`/homeassistant/www/` automatically at setup (no manual resource needed; they
+update/roll back with the integration):
+
+- **`custom: lmstudio-model-card`** — the simple one. Model menu + **Load /
+  Unload** + **Chargé / Déchargé** badge + **Refresh**. Loads with the server's
+  default parameters (plus the optional global *Context length* config).
+- **`custom: lmstudio-model-card-advanced`** — the advanced one. Same model
+  menu + a **parameter panel** (`context_length`, `flash_attention`,
+  `eval_batch_size`, `num_experts`, `offload_kv_cache_to_gpu`). Numbers are
+  free text, booleans are dropdowns (défaut / oui / non), and the display
+  starts on **defaults** — leave everything on « défaut » and it behaves like
+  the simple card. The Load button sends the chosen parameters to
+  `lmstudio.load_model` (if the model is already loaded it unloads then
+  re-loads with the new parameters).
+
+Add either as a card on a dashboard and it works out of the box.
 
 ## How it talks to LM Studio
 

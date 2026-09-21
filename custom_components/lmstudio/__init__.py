@@ -26,6 +26,7 @@ from .const import (
     DEFAULT_API_TOKEN,
     DEFAULT_TIMEOUT,
     DOMAIN,
+    LOAD_PARAM_KEYS,
     SERVICE_LOAD,
     SERVICE_REFRESH,
     SERVICE_UNLOAD,
@@ -39,6 +40,13 @@ PLATFORMS = ["switch", "sensor"]
 MODEL_ID_SCHEMA = vol.Schema({
     vol.Required("model"): cv.string,
 })
+
+#: Schema for the load_model service: model + the optional per-load parameters
+#: (context_length, flash_attention, eval_batch_size, num_experts,
+#: offload_kv_cache_to_gpu).  All optional except `model`.
+MODEL_LOAD_SCHEMA = vol.Schema(
+    {vol.Required("model"): cv.string, **{k: vol.Any(None, int, bool) for k in LOAD_PARAM_KEYS}}
+)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -87,8 +95,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise HomeAssistantError(
                 f"Unknown model '{model}'. Known models: {sorted(coordinator.data.keys())}"
             )
+        params = {k: call.data.get(k) for k in LOAD_PARAM_KEYS}
         try:
-            await coordinator.load_model(model)
+            await coordinator.load_model(model, params)
         except HomeAssistantError:
             raise
         except Exception as err:  # noqa: BLE001
@@ -106,7 +115,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def _svc_refresh(call: ServiceCall) -> None:
         await coordinator.async_refresh()
 
-    hass.services.async_register(DOMAIN, SERVICE_LOAD, _svc_load, schema=MODEL_ID_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_LOAD, _svc_load, schema=MODEL_LOAD_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_UNLOAD, _svc_unload, schema=MODEL_ID_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_REFRESH, _svc_refresh)
 

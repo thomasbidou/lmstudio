@@ -49,3 +49,14 @@ def compute_model_sync(known_ids: set[str], current_ids: set[str]) -> tuple[set[
     known = set(known_ids or ())
     current = set(current_ids or ())
     return current - known, known - current
+
+
+#: Keys accepted by the `load_model` service (beyond `model`).  Values are
+#: optional — omitted (None / missing) means "not sent, server default".
+LOAD_PARAM_KEYS: tuple[str, ...] = (
+    "context_length",
+    "flash_attention",
+    "eval_batch_size",
+    "num_experts",
+    "offload_kv_cache_to_gpu",
+)

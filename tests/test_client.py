@@ -213,6 +213,62 @@ def test_parse_local_models_case_insensitive():
     assert s == {"qwen/qwen3-8b"}
 
 
+def test_client_load_model_payload_with_params():
+    """client.load_model sends ONLY the provided params (typed), never None."""
+    from lmstudio.client import LMStudioClient
+
+    sent: dict | None = None
+
+    async def fake_post(path, payload):
+        nonlocal sent
+        sent = (path, payload)
+        return {"status": "loaded"}
+
+    client = LMStudioClient(None, "http://x:1234")
+    client._post = fake_post
+    import asyncio
+
+    asyncio.run(
+        client.load_model(
+            "qwen/qwen3-4b",
+            8192,
+            flash_attention=True,
+            eval_batch_size=256,
+            num_experts=None,           # omitted -> not sent
+            offload_kv_cache_to_gpu=False,
+        )
+    )
+    assert sent is not None
+    path, payload = sent
+    assert path == "/api/v1/models/load"
+    assert payload["model"] == "qwen/qwen3-4b"
+    assert payload["context_length"] == 8192
+    assert payload["flash_attention"] is True
+    assert payload["eval_batch_size"] == 256
+    assert "num_experts" not in payload
+    assert payload["offload_kv_cache_to_gpu"] is False
+
+
+def test_client_load_model_defaults_only():
+    """client.load_model with no params sends only the model id."""
+    from lmstudio.client import LMStudioClient
+
+    sent: dict | None = None
+
+    async def fake_post(path, payload):
+        nonlocal sent
+        sent = (path, payload)
+        return {}
+
+    client = LMStudioClient(None, "http://x:1234")
+    client._post = fake_post
+    import asyncio
+
+    asyncio.run(client.load_model("qwen/qwen3-4b", None))
+    assert sent is not None
+    assert sent[1] == {"model": "qwen/qwen3-4b"}
+
+
 def test_allowlist_filters_models():
     """Simulates the coordinator's _apply_allowlist behaviour end-to-end:
     given a raw model list and an allowlist, only allowed ids survive."""

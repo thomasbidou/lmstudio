@@ -28,6 +28,7 @@ from .const import (
     CONF_REFRESH,
     CONF_TIMEOUT,
     CONF_URL,
+    LOAD_PARAM_KEYS,
     parse_local_models,
 )
 
@@ -133,15 +134,34 @@ class LMStudioCoordinator(DataUpdateCoordinator[dict[str, ModelInfo]]):
         return model_id in (self.data or {})
 
     # ------------------------------------------------------------- actions
-    async def load_model(self, model_id: str) -> None:
-        """Load a model, guarded on current state. Confirms the flip after."""
+    async def load_model(
+        self, model_id: str, params: dict[str, Any] | None = None
+    ) -> None:
+        """Load a model, guarded on current state. Confirms the flip after.
+
+        `params` carries the optional per-load parameters (context_length,
+        flash_attention, eval_batch_size, num_experts, offload_kv_cache_to_gpu).
+        A missing/None value means "let the server use its default"; the global
+        config value (CONF_CONTEXT_LENGTH) only fills in `context_length` when
+        no explicit one is given.
+        """
         if self.is_loaded(model_id):
             _LOGGER.debug("load_model(%s) skipped: already loaded", model_id)
             return
         if self._client is None:
             raise HomeAssistantError("LM Studio client not initialized")
+        params = dict(params or {})
+        if "context_length" not in params or params.get("context_length") in (None, ""):
+            params["context_length"] = self._context_length
         try:
-            await self._client.load_model(model_id, self._context_length)
+            await self._client.load_model(
+                model_id,
+                params.get("context_length"),
+                flash_attention=params.get("flash_attention"),
+                eval_batch_size=params.get("eval_batch_size"),
+                num_experts=params.get("num_experts"),
+                offload_kv_cache_to_gpu=params.get("offload_kv_cache_to_gpu"),
+            )
         except LMStudioError as err:
             raise HomeAssistantError(f"Failed to load {model_id}: {err}") from err
         await self._async_confirm_state(model_id, want_loaded=True)

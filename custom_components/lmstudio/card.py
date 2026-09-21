@@ -1,14 +1,14 @@
-"""Ship the bundled Lovelace custom card into Home Assistant's ``www/``.
+"""Ship the bundled Lovelace custom cards into Home Assistant's ``www/``.
 
-The card (``www/lmstudio-model-card/card.js``) ships inside the integration
-package, versioned with the repo.  At setup we copy it into
-``/homeassistant/www/`` so Lovelace can load it via the standard
-``/local/lmstudio-model-card/card.js`` URL — the integration now owns the
-card end-to-end (install / update / rollback all stay consistent).
+Everything under ``www/`` in the integration package ships with the repo.
+At setup we mirror it into ``/homeassistant/www/`` so Lovelace can load any
+card via its standard URL (e.g. ``/local/lmstudio-model-card/card.js``) —
+the integration now owns the cards end-to-end (install / update / rollback
+all stay consistent).
 
-The copy is idempotent and content-aware: it only writes when the bundled
-card actually differs from the deployed one, so browser caches are not
-invalidated on every HA restart.
+The copy is idempotent and content-aware: a file is written only when the
+bundled copy actually differs from the deployed one, so browser caches are
+not invalidated on every HA restart.
 """
 
 from __future__ import annotations
@@ -22,18 +22,15 @@ from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__package__)
 
-#: card path relative to the integration package root
-CARD_REL = Path("www") / "lmstudio-model-card" / "card.js"
+
+def _bundled_dir() -> Path:
+    """Absolute path to the bundled www/ directory inside the package."""
+    return Path(__file__).resolve().parent / "www"
 
 
-def _bundled_card() -> Path:
-    """Absolute path to the bundled card.js inside the package."""
-    return Path(__file__).resolve().parent / CARD_REL
-
-
-def _target_path(hass: HomeAssistant) -> Path:
-    """Absolute path where the card should live under HA's www dir."""
-    return Path(hass.config.path("www")) / "lmstudio-model-card" / "card.js"
+def _www_root(hass: HomeAssistant) -> Path:
+    """Absolute path to Home Assistant's user www directory."""
+    return Path(hass.config.path("www"))
 
 
 def _digest(path: Path) -> str:
@@ -59,24 +56,47 @@ def _copy_sync(src: Path, dst: Path) -> None:
     dst.write_bytes(src.read_bytes())
 
 
-async def async_ship_card(hass: HomeAssistant) -> Path | None:
-    """Ensure the bundled card is present in ``www/``.
+async def async_ship_card(hass: HomeAssistant) -> list[Path]:
+    """Ensure every bundled card file is present under ``www/``.
 
-    Returns the target path when it was (re)written, or ``None`` when the
-    card was already up-to-date (or could not be found).
+    Returns the list of files that were (re)written (empty when everything
+    was already up-to-date, or when no bundled www/ directory exists).
     """
-    bundled = _bundled_card()
-    if not bundled.exists():
-        _LOGGER.debug(
-            "lmstudio: bundled card not found at %s — skipping ship", bundled
-        )
-        return None
+    bundled = _bundled_dir()
+    if not bundled.is_dir():
+        _LOGGER.debug("lmstudio: no bundled www/ directory — skipping ship")
+        return []
 
-    target = _target_path(hass)
-    if _same_content(bundled, target):
-        return None
+    # Collect the files to ship (skip anything HA-internal; only real cards).
+    sources = sorted(p for p in bundled.rglob("*") if p.is_file())
+    if not sources:
+        return []
+
+    root = _www_root(hass)
+    written: list[Path] = []
+    for src in sources:
+        dst = root / src.relative_to(bundled)
+        if _same_content(src, dst):
+            continue
+        written.append(dst)
+
+    if not written:
+        return []
 
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, _copy_sync, bundled, target)
-    _LOGGER.info("lmstudio: shipped Lovelace card to %s", target)
-    return target
+    await loop.run_in_executor(None, _copy_many, sources, root, bundled, written)
+    _LOGGER.info(
+        "lmstudio: shipped %d Lovelace card file(s) to %s", len(written), root
+    )
+    return written
+
+
+def _copy_many(
+    sources: list[Path], root: Path, bundled: Path, written: list[Path]
+) -> None:
+    """Copy each source that was flagged as needing a refresh."""
+    to_copy = set(written)
+    for src in sources:
+        dst = root / src.relative_to(bundled)
+        if dst in to_copy:
+            _copy_sync(src, dst)

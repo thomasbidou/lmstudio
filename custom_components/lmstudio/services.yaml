@@ -6,6 +6,41 @@ services:
         selector:
           text:
             placeholder: "publisher/model-name"
+      context_length:
+        required: false
+        selector:
+          number:
+            min: 1
+            max: 262144
+            mode: box
+        suggested_values:
+          - 4096
+          - 8192
+          - 32768
+        example: "8192"
+      flash_attention:
+        required: false
+        selector:
+          boolean:
+      eval_batch_size:
+        required: false
+        selector:
+          number:
+            min: 1
+            max: 4096
+            mode: box
+      num_experts:
+        required: false
+        selector:
+          number:
+            min: 1
+            max: 256
+            mode: box
+        example: "MoE models only"
+      offload_kv_cache_to_gpu:
+        required: false
+        selector:
+          boolean:
   unload_model:
     fields:
       model:
