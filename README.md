@@ -51,6 +51,9 @@ registered as a Lovelace resource — **both cards appear in the card picker**:
 - **`custom: lmstudio-model-card`** — the simple one. Model menu + **Load /
   Unload** + **Chargé / Déchargé** badge + **Refresh**. Loads with the server's
   default parameters (plus the optional global *Context length* config).
+
+  ![Simple card](docs/card-simple.png)
+
 - **`custom: lmstudio-model-card-advanced`** — the advanced one. Same model
   menu + a **parameter panel** (`context_length`, `flash_attention`,
   `eval_batch_size`, `num_experts`, `offload_kv_cache_to_gpu`). Numbers are
@@ -59,6 +62,8 @@ registered as a Lovelace resource — **both cards appear in the card picker**:
   the simple card. The Load button sends the chosen parameters to
   `lmstudio.load_model` (if the model is already loaded it unloads then
   re-loads with the new parameters).
+
+  ![Advanced card](docs/card-advanced.png)
 
 > If you upgrade from a version where only the simple card was present, **hard
 > refresh** the browser (Ctrl/Cmd+Shift+R) so the updated bundle is loaded and
