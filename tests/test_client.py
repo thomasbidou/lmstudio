@@ -235,3 +235,41 @@ def test_allowlist_filters_models():
     assert set(filtered.keys()) == {"qwen/qwen3-8b", "llama-3-8b"}
     # A linked model is correctly dropped.
     assert "openai/gpt-oss-120b" not in filtered
+
+
+# ------------------------------------------------------------------ dynamic sync
+def test_compute_model_sync_add_and_remove():
+    """The core of dynamic list behaviour: when a model is deleted on the
+    server it must appear in 'removed'; when a new one appears, in 'added'."""
+    from lmstudio.const import compute_model_sync
+
+    # known = switches currently in HA; current = what the server reports now.
+    known = {"qwen/qwen3-8b", "llama-3-8b", "gemma-7b"}
+    current = {"qwen/qwen3-8b", "gemma-7b", "openai/gpt-oss-120b"}
+
+    added, removed = compute_model_sync(known, current)
+    assert added == {"openai/gpt-oss-120b"}      # new on server -> create switch
+    assert removed == {"llama-3-8b"}             # gone on server -> delete switch
+
+
+def test_compute_model_sync_no_change():
+    from lmstudio.const import compute_model_sync
+    added, removed = compute_model_sync({"a", "b"}, {"a", "b"})
+    assert added == set()
+    assert removed == set()
+
+
+def test_compute_model_sync_all_removed():
+    """Edge case matching the user's report: server now empty of a model that
+    HA still shows -> it must be flagged removed."""
+    from lmstudio.const import compute_model_sync
+    added, removed = compute_model_sync({"qwen/qwen3-8b"}, set())
+    assert added == set()
+    assert removed == {"qwen/qwen3-8b"}
+
+
+def test_compute_model_sync_all_added():
+    from lmstudio.const import compute_model_sync
+    added, removed = compute_model_sync(set(), {"qwen/qwen3-8b"})
+    assert added == {"qwen/qwen3-8b"}
+    assert removed == set()

@@ -1,4 +1,12 @@
-"""One switch per LM Studio model: ON = loaded, OFF = not-loaded."""
+"""One switch per LM Studio model: ON = loaded, OFF = not-loaded.
+
+The list of models is DYNAMIC and mirrors the server:
+  * a model added to LM Studio  -> a switch is created;
+  * a model removed from LM Studio -> its switch is deleted.
+No integration reload is needed in either case. A coordinator listener
+performs the add/remove diff after every successful refresh (and after a
+manual `lmstudio.refresh`, which the Lovelace card's Refresh button calls).
+"""
 
 from __future__ import annotations
 
@@ -11,7 +19,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .client import ModelInfo
-from .const import DOMAIN
+from .const import DOMAIN, compute_model_sync
 from .coordinator import LMStudioCoordinator
 
 _LOGGER = logging.getLogger(__package__)
@@ -20,24 +28,39 @@ _LOGGER = logging.getLogger(__package__)
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    """Create one switch per model known to the server."""
+    """Create one switch per model and keep the set in sync with the server."""
     coordinator: LMStudioCoordinator = hass.data[DOMAIN][entry.entry_id]
-    known_ids: set[str] = set((coordinator.data or {}).keys())
-    async_add_entities([
-        ModelSwitch(coordinator, model)
-        for model in (coordinator.data or {}).values()
-    ])
 
-    # Pick up models downloaded into LM Studio after setup.
-    async def _on_update() -> None:
+    # model_id -> live switch entity. Single source of truth for which switches
+    # currently exist, used to diff against the server on every refresh.
+    switches: dict[str, ModelSwitch] = {}
+
+    # Initial batch.
+    initial_data = coordinator.data or {}
+    for mid, model in initial_data.items():
+        switches[mid] = ModelSwitch(coordinator, model)
+    async_add_entities(list(switches.values()))
+
+    # Reconcile the live switch set with coordinator.data after each refresh.
+    async def _handle_update() -> None:
         data = coordinator.data or {}
-        new = [mid for mid in data if mid not in known_ids]
-        if new:
-            _LOGGER.info("New models detected on LM Studio: %s", new)
-            known_ids.update(new)
-            async_add_entities([ModelSwitch(coordinator, data[mid]) for mid in new])
+        current_ids = set(data)
+        added, removed = compute_model_sync(set(switches), current_ids)
 
-    coordinator.async_add_listener(_on_update)
+        if added:
+            new_entities = {mid: ModelSwitch(coordinator, data[mid]) for mid in added}
+            switches.update(new_entities)
+            async_add_entities(list(new_entities.values()))
+            _LOGGER.info("LM Studio: added model(s): %s", ", ".join(sorted(added)))
+
+        if removed:
+            _LOGGER.info("LM Studio: removed model(s): %s", ", ".join(sorted(removed)))
+            for mid in removed:
+                # async_remove() deletes the entity + its registry entry, so the
+                # model disappears from HA (and from the Lovelace card) cleanly.
+                await switches.pop(mid).async_remove()
+
+    coordinator.async_add_listener(_handle_update)
 
 
 class ModelSwitch(CoordinatorEntity[LMStudioCoordinator]):

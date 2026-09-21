@@ -35,3 +35,17 @@ def parse_local_models(text: str) -> set[str]:
     if text is None:
         return set()
     return {item.strip().lower() for item in str(text).splitlines() if item.strip()}
+
+
+def compute_model_sync(known_ids: set[str], current_ids: set[str]) -> tuple[set[str], set[str]]:
+    """Pure diff used to keep the switch set in sync with the server.
+
+    Returns (added, removed):
+      * added   -> ids now on the server but not yet represented as a switch;
+      * removed -> ids represented as a switch but no longer on the server.
+    Both sets are empty when the two collections are equal. Kept pure (no HA
+    imports) so the add/remove behaviour is unit-testable.
+    """
+    known = set(known_ids or ())
+    current = set(current_ids or ())
+    return current - known, known - current

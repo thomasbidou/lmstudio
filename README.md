@@ -77,9 +77,19 @@ action:
 
 ## Notes
 
+- **Dynamic model list** — the list of models mirrors the server at all times:
+  a model added to LM Studio gets a switch automatically, and a model **deleted**
+  from LM Studio loses its switch (and its card entry) on the next refresh —
+  no integration reload needed. The Lovelace card's **Refresh** button forces
+  that re-sync immediately (it calls the `lmstudio.refresh` service).
+- **Loaded detection** — every switch is ON when its model is loaded on the
+  server and OFF when not; the card badge shows **Chargé / Déchargé**.
+- **Load / unload** — toggle the switch, or use the services
+  `lmstudio.load_model` / `lmstudio.unload_model` in automations.
+- **Local models only** (optional) — a newline-separated allowlist of model ids
+  to expose only a subset (e.g. to hide models that appear via LM Link). Leave
+  empty to keep every model on the server.
 - One config entry = one LM Studio server. Multiple servers → multiple entries
   (global services act on the last entry — use the switches for per-server control).
-- Models downloaded into LM Studio after setup are picked up automatically on
-  the next refresh.
 - When the server is unreachable, all entities go `unavailable` (HA stays stable,
   the coordinator keeps retrying).
