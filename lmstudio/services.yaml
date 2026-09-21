@@ -1,0 +1,17 @@
+services:
+  load_model:
+    fields:
+      model:
+        required: true
+        selector:
+          text:
+            placeholder: "publisher/model-name"
+  unload_model:
+    fields:
+      model:
+        required: true
+        selector:
+          text:
+            placeholder: "publisher/model-name"
+  refresh:
+    fields: {}

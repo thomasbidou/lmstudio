@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "LM Studio",
+        "description": "Enter the URL of your LM Studio server (local network). The connection is tested before saving.",
+        "data": {
+          "url": "Server URL",
+          "timeout": "Timeout (seconds)",
+          "refresh_interval": "Refresh interval (seconds)",
+          "api_token": "API token (optional)",
+          "context_length": "Context length on load (optional)"
+        },
+        "description_confirm": ""
+      }
+    },
+    "error": {
+      "unreachable": "Cannot reach LM Studio at that URL. Check the address, the port (default 1234) and that the LM Studio server is running."
+    },
+    "abort": {
+      "already_configured": "This LM Studio server is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "LM Studio settings",
+        "data": {
+          "url": "Server URL",
+          "timeout": "Timeout (seconds)",
+          "refresh_interval": "Refresh interval (seconds)",
+          "api_token": "API token (optional)",
+          "context_length": "Context length on load (optional)"
+        }
+      }
+    },
+    "error": {
+      "unreachable": "Cannot reach LM Studio at that URL."
+    }
+  }
+}
