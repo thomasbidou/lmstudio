@@ -17,6 +17,7 @@ from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from .card import async_ship_card
 from .client import LMStudioClient, LMStudioConnectionError
 from .const import (
     CONF_API_TOKEN,
@@ -71,6 +72,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coordinator = LMStudioCoordinator(hass, entry)
     await coordinator.async_setup()
+
+    # Ship the Lovelace card bundled with the integration (idempotent).
+    await _async_sync_card(hass)
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
