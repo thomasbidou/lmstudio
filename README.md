@@ -20,6 +20,15 @@ Services (usable in automations):
 | `lmstudio.unload_model` | `model: "qwen/qwen3-8b"` | Unload (only if currently loaded) |
 | `lmstudio.refresh` | — | Force a state refresh |
 
+## Lovelace card
+
+The integration ships its own Lovelace card **with the package**
+(`lmstudio-model-card`): a scrollable model menu + a single **Load / Unload**
+button + a **Chargé / Déchargé** badge + a **Refresh** button. It is copied
+into `/homeassistant/www/` automatically at setup — so you never add the
+resource manually, and it updates/rolls back with the integration. Add a
+`custom: lmstudio-model-card` card to a dashboard and it works out of the box.
+
 ## How it talks to LM Studio
 
 Verified against the live API:
