@@ -41,10 +41,9 @@ Pitfalls handled in code:
 
 ## Install (HACS)
 
-1. Push this repo to GitHub.
-2. HACS → Integrations → ⚙ → *Custom repositories* → add `https://github.com/<you>/lmstudio-ha`.
-3. HACS → Integrations → **LM Studio** → Install.
-4. Restart Home Assistant.
+1. HACS → Integrations → ⚙ → *Custom repositories* → add `https://github.com/thomasbidou/lmstudio-ha`.
+2. HACS → Integrations → **LM Studio** → Install.
+3. Restart Home Assistant.
 
 ## Configure
 
