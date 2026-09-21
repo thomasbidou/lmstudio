@@ -52,7 +52,13 @@ Settings → Devices & Services → **Add integration** → *LM Studio* →
 - **Server URL** — e.g. `http://192.168.100.72:1234` (tested before saving);
 - **Timeout** (default 10 s), **Refresh interval** (default 60 s);
 - **API token** (optional), **Context length on load** (optional — passed as
-  `context_length` to `/models/load` when set).
+  `context_length` to `/models/load` when set);
+- **Local models only** (optional) — a newline-separated allowlist of model ids
+  (`publisher/name`). When non-empty, the integration exposes **only** those
+  models: switches, sensors and the Lovelace card ignore everything else. This
+  is the intended way to hide models that appear on the server via **LM Link**
+  (the HTTP API has no local/linked field — the allowlist is the filter).
+  Leave empty to keep every model on the server.
 
 Options can be changed later from the entry's *Settings* (re-tested live).
 

@@ -15,10 +15,12 @@ from .client import LMStudioClient, LMStudioConnectionError
 from .const import (
     CONF_API_TOKEN,
     CONF_CONTEXT_LENGTH,
+    CONF_LOCAL_MODELS,
     CONF_REFRESH,
     CONF_TIMEOUT,
     CONF_URL,
     DEFAULT_API_TOKEN,
+    DEFAULT_LOCAL_MODELS,
     DEFAULT_REFRESH,
     DEFAULT_TIMEOUT,
     DEFAULT_URL,
@@ -33,6 +35,7 @@ STEP_USER_SCHEMA = vol.Schema({
     vol.Optional(CONF_REFRESH, default=DEFAULT_REFRESH): int,
     vol.Optional(CONF_API_TOKEN, default=""): str,
     vol.Optional(CONF_CONTEXT_LENGTH): int,
+    vol.Optional(CONF_LOCAL_MODELS, default=""): str,
 })
 
 STEP_OPTIONS_SCHEMA = vol.Schema({
@@ -41,6 +44,7 @@ STEP_OPTIONS_SCHEMA = vol.Schema({
     vol.Optional(CONF_REFRESH, default=DEFAULT_REFRESH): int,
     vol.Optional(CONF_API_TOKEN): str,
     vol.Optional(CONF_CONTEXT_LENGTH): int,
+    vol.Optional(CONF_LOCAL_MODELS, default=DEFAULT_LOCAL_MODELS): str,
 })
 
 
@@ -80,6 +84,7 @@ class LMStudioConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_TIMEOUT: timeout,
                     CONF_REFRESH: int(user_input.get(CONF_REFRESH, DEFAULT_REFRESH)),
                     CONF_API_TOKEN: api_token,
+                    CONF_LOCAL_MODELS: (user_input.get(CONF_LOCAL_MODELS) or "").strip(),
                 }
                 context_length = user_input.get(CONF_CONTEXT_LENGTH)
                 if context_length:
@@ -129,6 +134,7 @@ class LMStudioOptionsFlow(OptionsFlow):
                     CONF_TIMEOUT: timeout,
                     CONF_REFRESH: int(user_input.get(CONF_REFRESH, DEFAULT_REFRESH)),
                     CONF_API_TOKEN: api_token,
+                    CONF_LOCAL_MODELS: (user_input.get(CONF_LOCAL_MODELS) or "").strip(),
                 }
                 context_length = user_input.get(CONF_CONTEXT_LENGTH)
                 if context_length:

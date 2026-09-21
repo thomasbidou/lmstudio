@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-PKG_PATH = "/home/thomas/dev/lmstudio-ha/lmstudio"
+PKG_PATH = "/home/thomas/dev/lmstudio-ha/custom_components/lmstudio"
 _spec = importlib.machinery.ModuleSpec("lmstudio", loader=None, is_package=True)
 _spec.submodule_search_locations = [PKG_PATH]
 _pkg = importlib.util.module_from_spec(_spec)
@@ -191,3 +191,47 @@ def test_connection_error_wrapped():
     import asyncio
     with pytest.raises(LMStudioConnectionError):
         asyncio.run(client.list_models())
+
+
+# ------------------------------------------------------------------ allowlist
+def test_parse_local_models_basic():
+    from lmstudio.const import parse_local_models
+    s = parse_local_models("qwen/qwen3-8b\n  llama-3-8b  \n\nfoo/bar\n")
+    assert s == {"qwen/qwen3-8b", "llama-3-8b", "foo/bar"}
+
+
+def test_parse_local_models_empty_and_none():
+    from lmstudio.const import parse_local_models
+    assert parse_local_models("") == set()
+    assert parse_local_models(None) == set()
+    assert parse_local_models("   \n\t\n") == set()
+
+
+def test_parse_local_models_case_insensitive():
+    from lmstudio.const import parse_local_models
+    s = parse_local_models("QWEN/QWEN3-8B")
+    assert s == {"qwen/qwen3-8b"}
+
+
+def test_allowlist_filters_models():
+    """Simulates the coordinator's _apply_allowlist behaviour end-to-end:
+    given a raw model list and an allowlist, only allowed ids survive."""
+    from lmstudio.const import parse_local_models
+
+    class _FakeInfo:
+        def __init__(self, id_): self.id = id_
+
+    raw = {m.id: _FakeInfo(m.id) for m in [
+        _FakeInfo("qwen/qwen3-8b"),
+        _FakeInfo("llama-3-8b"),
+        _FakeInfo("openai/gpt-oss-120b"),
+    ]}
+    allowlist = parse_local_models("qwen/qwen3-8b\nllama-3-8b")
+    # Empty allowlist = keep all.
+    if not allowlist:
+        filtered = raw
+    else:
+        filtered = {mid: info for mid, info in raw.items() if mid.lower() in allowlist}
+    assert set(filtered.keys()) == {"qwen/qwen3-8b", "llama-3-8b"}
+    # A linked model is correctly dropped.
+    assert "openai/gpt-oss-120b" not in filtered

@@ -24,9 +24,11 @@ from .const import (
     ACTION_CONFIRM_TIMEOUT,
     CONF_API_TOKEN,
     CONF_CONTEXT_LENGTH,
+    CONF_LOCAL_MODELS,
     CONF_REFRESH,
     CONF_TIMEOUT,
     CONF_URL,
+    parse_local_models,
 )
 
 _LOGGER = logging.getLogger(__package__)
@@ -45,6 +47,11 @@ class LMStudioCoordinator(DataUpdateCoordinator[dict[str, ModelInfo]]):
         self._timeout: int = int(data.get(CONF_TIMEOUT, 10))
         self._api_token: str = data.get(CONF_API_TOKEN, "")
         self._context_length: int | None = data.get(CONF_CONTEXT_LENGTH) or None
+        # Optional allowlist: when non-empty, only these model ids are
+        # exposed (switches / sensors). Used to hide LM Link models.
+        self._local_models: set[str] = parse_local_models(
+            str(data.get(CONF_LOCAL_MODELS, ""))
+        )
         self._client: LMStudioClient | None = None
         super().__init__(
             hass,
@@ -72,6 +79,20 @@ class LMStudioCoordinator(DataUpdateCoordinator[dict[str, ModelInfo]]):
     def context_length(self) -> int | None:
         return self._context_length
 
+    # ------------------------------------------------------------- filtering
+    def _apply_allowlist(self, models: dict[str, ModelInfo]) -> dict[str, ModelInfo]:
+        """Keep only allowlisted models (case-insensitive on the id).
+
+        An empty allowlist means 'keep everything'.
+        """
+        if not self._local_models:
+            return models
+        return {
+            mid: info
+            for mid, info in models.items()
+            if mid.lower() in self._local_models
+        }
+
     # ------------------------------------------------------------------ poll
     async def _async_update_data(self) -> dict[str, ModelInfo]:
         if self._client is None:
@@ -91,7 +112,13 @@ class LMStudioCoordinator(DataUpdateCoordinator[dict[str, ModelInfo]]):
                     m.size_bytes = d.get("size_bytes")
         except LMStudioError as err:
             raise UpdateFailed(f"Error communicating with LM Studio: {err}") from err
-        return {m.id: m for m in models}
+        result = {m.id: m for m in models}
+        filtered = self._apply_allowlist(result)
+        if len(filtered) != len(result):
+            _LOGGER.debug(
+                "Allowlist: keeping %d of %d models", len(filtered), len(result)
+            )
+        return filtered
 
     # ------------------------------------------------------------------ state
     def model_state(self, model_id: str) -> str:
@@ -152,7 +179,9 @@ class LMStudioCoordinator(DataUpdateCoordinator[dict[str, ModelInfo]]):
             else:
                 model = fresh.get(model_id)
                 if model is not None and model.is_loaded is want_loaded:
-                    await self.async_set_updated_data(fresh)
+                    await self.async_set_updated_data(
+                        self._apply_allowlist(fresh)
+                    )
                     return
             if asyncio.get_running_loop().time() >= deadline:
                 _LOGGER.warning(

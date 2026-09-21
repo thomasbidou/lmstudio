@@ -9,7 +9,8 @@
           "timeout": "Timeout (seconds)",
           "refresh_interval": "Refresh interval (seconds)",
           "api_token": "API token (optional)",
-          "context_length": "Context length on load (optional)"
+          "context_length": "Context length on load (optional)",
+          "local_models": "Local models only (one id per line, empty = all)"
         },
         "description_confirm": ""
       }
@@ -30,7 +31,8 @@
           "timeout": "Timeout (seconds)",
           "refresh_interval": "Refresh interval (seconds)",
           "api_token": "API token (optional)",
-          "context_length": "Context length on load (optional)"
+          "context_length": "Context length on load (optional)",
+          "local_models": "Local models only (one id per line, empty = all)"
         }
       }
     },
