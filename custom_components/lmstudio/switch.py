@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, async_create_task
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -63,7 +63,7 @@ async def async_setup_entry(
                 # async_remove() deletes the entity + its registry entry, so the
                 # model disappears from HA (and from the Lovelace card) cleanly.
                 entity = switches.pop(mid)
-                async_create_task(entity.async_remove(), f"lmstudio-remove-{mid}")
+                hass.async_create_task(entity.async_remove(), f"lmstudio-remove-{mid}")
 
     coordinator.async_add_listener(_handle_update)
 
