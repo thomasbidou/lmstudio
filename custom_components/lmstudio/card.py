@@ -24,13 +24,14 @@ import asyncio
 import hashlib
 import logging
 from pathlib import Path
+from urllib.parse import urlparse
 
 from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__package__)
 
-#: The URL the browser loads to get the card bundle.
-CARD_URL = "/local/lmstudio-model-card/card.js"
+#: Base URL (no query) the browser loads to get the card bundle.
+CARD_BASE = "/local/lmstudio-model-card/card.js"
 
 
 def _bundled_dir() -> Path:
@@ -64,6 +65,22 @@ def _same_content(a: Path, b: Path) -> bool:
 def _copy_sync(src: Path, dst: Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_bytes(src.read_bytes())
+
+
+def _url_base(url: str) -> str:
+    """Strip the query string so ``/x.js?v=1`` and ``/x.js`` compare equal."""
+    return urlparse(url or "")._replace(query="").geturl()
+
+
+def _versioned_url(content: bytes) -> str:
+    """Append ``?v=<12-hex>`` derived from the file content.
+
+    The value only changes when the file content changes, so browsers are
+    forced to re-fetch on a real update (and the Nabu Casa edge cache is
+    bypassed) but never thrash on a plain HA restart — the same technique as
+    album_slideshow (``?v=1.11.0``) and HACS (``?hacstag=…``).
+    """
+    return f"{CARD_BASE}?v={hashlib.sha256(content).hexdigest()[:12]}"
 
 
 async def async_ship_card(hass: HomeAssistant) -> list[Path]:
@@ -112,42 +129,64 @@ def _copy_many(
             _copy_sync(src, dst)
 
 
+def _deployed_card_path(hass: HomeAssistant) -> Path | None:
+    """Path of the deployed card.js under www/, if present."""
+    p = _www_root(hass) / "lmstudio-model-card" / "card.js"
+    return p if p.exists() else None
+
+
+def _versioned_url_for(hass: HomeAssistant) -> str:
+    """Versioned URL computed from the deployed file's content on disk."""
+    p = _deployed_card_path(hass)
+    if p is None:
+        return CARD_BASE
+    return _versioned_url(p.read_bytes())
+
+
 async def async_register_card(hass: HomeAssistant) -> bool:
-    """Register the card bundle so the frontend always loads it.
+    """Register the card bundle with a versioned URL.
+
+    The versioned URL (``?v=<content-hash>``) is the key difference from the
+    album_slideshow/HACS/Bambu cards that work on this box: it forces browsers
+    (and the Nabu Casa edge) to fetch the real file instead of serving a stale
+    cached copy. A plain un-versioned ``/local/…`` URL is exactly what was
+    being served stale before.
 
     Primary mechanism: ``add_extra_js_url`` — the frontend injects a
-    ``<script type="module">`` tag for this URL on **every** Lovelace
-    render, independent of the ``lovelace_resources`` storage.  This is the
-    durable path (same pattern as the album_slideshow integration) and is
-    what keeps the cards available even if a resource entry is ever dropped
-    from storage.
+    ``<script type="module">`` tag on **every** Lovelace render, independent
+    of the ``lovelace_resources`` storage.  This is the durable path (same as
+    album_slideshow) and keeps the card available even if a resource entry is
+    dropped from storage.
 
-    Secondary mechanism: a Lovelace resource entry, created only if one is
-    not already present.  Guarded to be idempotent; failures are non-fatal
-    because ``add_extra_js_url`` already covers the load.
+    Secondary mechanism: a Lovelace resource entry (create-or-update by URL
+    base) for UI discoverability.  Additive and best-effort — failures are
+    non-fatal because ``add_extra_js_url`` already covers the load.
 
     Returns ``True`` if the card was registered (or already registered).
     """
     ok = False
+    vurl = await asyncio.get_running_loop().run_in_executor(
+        None, _versioned_url_for, hass
+    )
+    _LOGGER.info("lmstudio: registering card at %s", vurl)
 
     # --- primary: add_extra_js_url -------------------------------------
     try:
         from homeassistant.components.frontend import add_extra_js_url
 
-        add_extra_js_url(hass, CARD_URL)
+        add_extra_js_url(hass, vurl)
         ok = True
-        _LOGGER.info("lmstudio: card registered via add_extra_js_url at %s", CARD_URL)
+        _LOGGER.info("lmstudio: card registered via add_extra_js_url at %s", vurl)
     except Exception:  # noqa: BLE001 - version drift, fall through
         _LOGGER.debug("lmstudio: add_extra_js_url unavailable; will rely on resource only", exc_info=True)
 
-    # --- secondary: lovelace resource entry (idempotent) ---------------
+    # --- secondary: lovelace resource entry (create-or-update) ---------
     # hass.data key for Lovelace is "lovelace" (LOVELACE_DATA = HassKey(DOMAIN),
     # stable across versions — same approach as album_slideshow).
     lovelace_data = hass.data.get("lovelace")
     if lovelace_data is None:
-        # Lovelace not yet set up (we're probably mid-bootstrap). The
-        # add_extra_js_url registration is already in place, which is the
-        # durable path; skip the resource entry rather than fail setup.
+        # Lovelace not yet set up (mid-bootstrap). The add_extra_js_url
+        # registration is already in place (the durable path); skip resource.
         if ok:
             return True
         _LOGGER.debug("lmstudio: lovelace data not ready; skipping resource entry")
@@ -162,6 +201,7 @@ async def async_register_card(hass: HomeAssistant) -> bool:
         _LOGGER.debug("lmstudio: resource collection unavailable; relying on add_extra_js_url")
         return ok
 
+    base = _url_base(CARD_BASE)
     try:
         if hasattr(resources, "async_load"):
             try:
@@ -169,18 +209,38 @@ async def async_register_card(hass: HomeAssistant) -> bool:
             except Exception:  # noqa: BLE001
                 pass
         items = list(resources.async_items()) if hasattr(resources, "async_items") else []
-        already = any(
-            (getattr(i, "url", None) or (i.get("url") if isinstance(i, dict) else "")) == CARD_URL
-            for i in items
-        )
-        if not already:
-            # 2026.9.3 RESOURCE_CREATE_FIELDS uses ``res_type`` (CONF_RESOURCE_TYPE_WS)
-            # and ``url``.
-            await resources.async_create_item({"url": CARD_URL, "res_type": "module"})
-            _LOGGER.info("lmstudio: Lovelace resource created for %s", CARD_URL)
+        # Find an existing entry by URL base (ignores the ?v= query) so we
+        # update it in place instead of stacking duplicate entries.
+        existing_idx = -1
+        existing_url = ""
+        for i, item in enumerate(items):
+            iurl = (
+                getattr(item, "url", None)
+                or (item.get("url") if isinstance(item, dict) else "")
+                or ""
+            )
+            if _url_base(iurl) == base:
+                existing_idx = i
+                existing_url = iurl
+                break
+
+        if existing_idx == -1:
+            # No entry yet → create with the versioned URL.
+            # 2026.9.3 RESOURCE_CREATE_FIELDS uses ``res_type`` and ``url``.
+            await resources.async_create_item({"url": vurl, "res_type": "module"})
+            _LOGGER.info("lmstudio: Lovelace resource created for %s", vurl)
+        elif existing_url != vurl:
+            # Entry exists with a stale/different URL → update in place.
+            if hasattr(resources, "async_update_item"):
+                await resources.async_update_item(existing_idx, {"url": vurl, "res_type": "module"})
+            elif hasattr(resources, "async_delete_item"):
+                await resources.async_delete_item(existing_idx)
+                await resources.async_create_item({"url": vurl, "res_type": "module"})
+            _LOGGER.info("lmstudio: Lovelace resource updated %s → %s", existing_url, vurl)
+        # else: already up to date → do nothing.
     except Exception:  # noqa: BLE001
         _LOGGER.warning(
-            "lmstudio: could not create Lovelace resource; card still loads via add_extra_js_url"
+            "lmstudio: could not manage Lovelace resource; card still loads via add_extra_js_url"
         )
 
     return True
