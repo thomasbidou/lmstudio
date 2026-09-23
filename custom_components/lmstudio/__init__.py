@@ -81,8 +81,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = LMStudioCoordinator(hass, entry)
     await coordinator.async_setup()
 
-    # Ship the Lovelace card bundled with the integration (idempotent).
+    # Ship the Lovelace card bundled with the integration (idempotent), then
+    # register it so the frontend always loads it (add_extra_js_url primary,
+    # lovelace resource entry secondary — survives storage rewrites).
     await async_ship_card(hass)
+    await async_register_card(hass)
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
