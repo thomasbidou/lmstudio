@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, async_create_task
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -42,7 +42,11 @@ async def async_setup_entry(
     async_add_entities(list(switches.values()))
 
     # Reconcile the live switch set with coordinator.data after each refresh.
-    async def _handle_update() -> None:
+    # NOTE: the coordinator invokes this callback SYNCHRONOUSLY (HA's
+    # ``async_update_listeners`` is a ``@callback`` and calls ``update_callback()``
+    # without awaiting), so the listener itself must be a plain function.
+    # Async work (entity removal) is scheduled onto the event loop instead.
+    def _handle_update() -> None:
         data = coordinator.data or {}
         current_ids = set(data)
         added, removed = compute_model_sync(set(switches), current_ids)
@@ -58,7 +62,8 @@ async def async_setup_entry(
             for mid in removed:
                 # async_remove() deletes the entity + its registry entry, so the
                 # model disappears from HA (and from the Lovelace card) cleanly.
-                await switches.pop(mid).async_remove()
+                entity = switches.pop(mid)
+                async_create_task(entity.async_remove(), f"lmstudio-remove-{mid}")
 
     coordinator.async_add_listener(_handle_update)
 

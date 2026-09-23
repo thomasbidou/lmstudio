@@ -17,7 +17,7 @@ from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .card import async_ship_card
+from .card import async_register_card, async_ship_card
 from .client import LMStudioClient, LMStudioConnectionError
 from .const import (
     CONF_API_TOKEN,

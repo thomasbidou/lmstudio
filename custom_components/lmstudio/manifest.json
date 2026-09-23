@@ -1,7 +1,7 @@
 {
   "domain": "lmstudio",
   "name": "LM Studio",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "config_flow": true,
   "dependencies": [],
   "iot_class": "local_polling",
